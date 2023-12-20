@@ -55,7 +55,6 @@ long DO=523.25, //definimos las frecuencias de las notas
  LAS=932.33,
  SI=987.77,
  RE2=1174.66,
-9
  FAS2=1479.98,
  PAU=30000; //pausa
 //////////////////////////////////// DEFINICION DE CARACTERES
@@ -115,7 +114,6 @@ B00011,
 const int BocaNormal = 0x5F;
 /// BOCA ELEVADA
 const int BocaElevada = 0x2D;
-10
 byte bocaSonrieIzda[8] = { /// BOCA SONRIENTE IZDA
 B00000,
 B00000,
@@ -181,7 +179,6 @@ void loop() {
  lcd.write("comida ");
  //Serial.print("Quiero comida");//
  delay(2000);
-11
  lcd.setCursor(9,0);
  lcd.write("Dame ");
  lcd.setCursor(9,1);
@@ -254,7 +251,6 @@ void loop() {
 
  lcd.setCursor(9,0);
  lcd.write("Pulsa ");
-12
  lcd.setCursor(9,1);
  lcd.write("boton 1");
 
@@ -326,7 +322,6 @@ void playSequence() {
  digitalWrite(currentColor, HIGH);
  if(sequence[i] == 1){
  tone(zumPin, DO);
-13
  }else if(sequence[i] == 2){
  tone(zumPin, RE);
  }else if(sequence[i] == 3){
@@ -394,7 +389,6 @@ bool simon(){
  digitalWrite(yellowPin, HIGH); // Enciende el LED correspondiente
  tone(zumPin, DO);
  delay(500);
-14
  digitalWrite(yellowPin, LOW); // Apaga el LED
  }else if(buttonPressed == 2){
  digitalWrite(bluePin, HIGH); // Enciende el LED correspondiente
@@ -462,7 +456,6 @@ bool comprobarComida(){
 
  while(!tarjetaLeida){
  if ( mfrc522.PICC_IsNewCardPresent()) {
-15
  //Seleccionamos una tarjeta
  if ( mfrc522.PICC_ReadCardSerial()) {
 
@@ -598,7 +591,6 @@ void Dormido(){ ///////////////////////////////////////// DORMIDO //////////////
  lcd.write(BocaElevada);
  lcd.write(BocaElevada);
 
-17
 
  tone(zumPin, DO);
  delay(100);
