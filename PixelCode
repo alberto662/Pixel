@@ -1,0 +1,667 @@
+#include <LiquidCrystal.h>
+#include <SPI.h>
+#include <MFRC522.h>
+#include <Keypad.h>
+#define RST_PIN 49 //Pin 49 para el reset del RC522
+#define SS_PIN 53 //Pin 53 para el SS (SDA) del RC522
+MFRC522 mfrc522(SS_PIN, RST_PIN); //Creamos el objeto para el RC522
+//Crear el objeto LCD con los números correspondientes (rs, en, d4, d5, d6, d7)
+LiquidCrystal lcd(8, 9, 0, 1, 2, 3, 4, 5, 6, 7);
+//Codigos de cada comida
+byte carne[] = {243, 183, 38, 153}; //{0xF3, 0xB7, 0x26, 0x99};
+byte pescado[] = {3, 69, 109, 153}; //{0x03, 0x45, 0x6D, 0x99};
+byte verdura[] = {10, 14, 39, 254}; //{0x0A, 0x0E, 0x27, 0xFE};
+// ESTADOS
+bool encendido=true;
+unsigned int comidaPedida = 0;
+bool igualGlobal = false;
+bool tarjetaLeida = false;
+bool jugando = false;
+bool ganado = false;
+// MUSICA
+const int zumPin = 11;
+const int yellowPin = 12;
+const int bluePin = 46;
+const int redPin = 45;
+const int greenPin = 44;
+long int numAleatorio = 0;
+const int maxSteps = 4;
+int sequence[maxSteps];
+int currentSteps = 1;
+// Teclado
+const byte rowsCount = 4;
+const byte columsCount = 4;
+char key;
+char keys[rowsCount][columsCount] = {
+ { '1','2','3', 'A' },
+ { '4','5','6', 'B' },
+ { '7','8','9', 'C' },
+ { '*','0','#', 'D' }
+};
+const byte rowPins[rowsCount] = { 21, 20, 19, 18 };
+const byte columnPins[columsCount] = { 17, 16, 15, 14 };
+Keypad keypad = Keypad(makeKeymap(keys), rowPins, columnPins, rowsCount, columsCount);
+//////////////////////////////////// MUSICA
+long DO=523.25, //definimos las frecuencias de las notas
+ DOS=554.37,
+ RE=587.33,
+ RES=622.25,
+ MI=659.26,
+ FA=698.46,
+ FAS=739.99,
+ SOL=783.99,
+ SOLS=830.61,
+ LA=880,
+ LAS=932.33,
+ SI=987.77,
+ RE2=1174.66,
+9
+ FAS2=1479.98,
+ PAU=30000; //pausa
+//////////////////////////////////// DEFINICION DE CARACTERES
+/// VACIO
+const int Vacio = 0x20;
+/// OJO NORMAL
+const int OjoNormal = 0x6F;
+/// OJO PEQUEÑO
+const int OjoPeque = 0x6F;
+/// OJO DORMIR
+const int OjoDormir = 0x5F;
+/// OJO TRISTE
+const int OjoTriste = 0x2C;
+/// OJO SORPRESA
+const int OjoSorpresa = 0x2E;
+byte ojoFeliz[8] = { /// OJO FELIZ
+B00000,
+B00000,
+B00000,
+B10001,
+B10001,
+B10001,
+B10001,
+B01110,
+};
+byte ojoEnfadoDcha[8] = { /// OJO ENFADO DCHA
+B00000,
+B10000,
+B01100,
+B01011,
+B01010,
+B01110,
+B01110,
+B00000,
+};
+byte ojoEnfadoIzda[8] = { /// OJO ENFADO IZDA
+B00000,
+B00001,
+B00110,
+B11010,
+B01010,
+B01110,
+B01110,
+B00000,
+};
+byte ojoJuego[8] = { /// OJO JUEGO
+B00000,
+B00000,
+B00000,
+B00000,
+B00000,
+B01111,
+B10011,
+B00011,
+};
+/// BOCA NORMAL
+const int BocaNormal = 0x5F;
+/// BOCA ELEVADA
+const int BocaElevada = 0x2D;
+10
+byte bocaSonrieIzda[8] = { /// BOCA SONRIENTE IZDA
+B00000,
+B00000,
+B00000,
+B00000,
+B10000,
+B01100,
+B00011,
+B00000,
+};
+byte bocaSonrieDcha[8] = { /// BOCA SONRIENTE DCHA
+B00000,
+B00000,
+B00000,
+B00000,
+B00001,
+B00110,
+B11000,
+B00000,
+};
+/////////////////////////////////////////////////////////////////
+void setup() {
+ ///////////////////////////// SETEO DE CARACTERES ////////
+ lcd.createChar (0, bocaSonrieIzda);
+ lcd.createChar (1, bocaSonrieDcha);
+ lcd.createChar (2, ojoFeliz);
+ lcd.createChar (3, ojoEnfadoDcha);
+ lcd.createChar (4, ojoEnfadoIzda);
+ lcd.createChar (5, ojoJuego);
+ lcd.begin (16, 2);
+ //Iniciar serial monitor
+ //Serial.begin(9600);
+ encendido = false;
+ //Iniciar lector NFC
+ SPI.begin(); //Iniciamos el Bus SPI
+ mfrc522.PCD_Init(); // Iniciamos el MFRC522
+
+ //Leds
+ pinMode(yellowPin, OUTPUT);
+ pinMode(bluePin, OUTPUT);
+ pinMode(redPin, OUTPUT);
+ pinMode(greenPin, OUTPUT);
+
+ //Inicializa la generación de números aleatorios
+ randomSeed(analogRead(A1));
+ initializeSequence();
+}
+/////////////////////////////////////////////////////////////////
+void loop() {
+
+ if(keypad.getKey() == '0') {
+ encendido = true;
+ }//boton 0 pulsado
+
+
+ while(encendido){
+ Normal();
+ delay(5000);
+ Triste();
+ lcd.setCursor(9,0);
+ lcd.write("Quiero ");
+ lcd.setCursor(9,1);
+ lcd.write("comida ");
+ //Serial.print("Quiero comida");//
+ delay(2000);
+11
+ lcd.setCursor(9,0);
+ lcd.write("Dame ");
+ lcd.setCursor(9,1);
+ //Se genera un numero entre 1 y 3 para la comida
+ comidaPedida = random(1,4);
+ if(comidaPedida == 1){
+ lcd.write("carne ");
+ }else if(comidaPedida == 2){
+ lcd.write("pescado");
+ }else if(comidaPedida == 3){
+ lcd.write("verdura");
+ }
+ //Serial.print("Dame carne");//
+
+ igualGlobal = comprobarComida();
+
+ if(!igualGlobal){
+
+ borrarTexto();
+ delay(1000);
+ lcd.setCursor(9,0);
+ lcd.write("Queria ");
+ lcd.setCursor(9,1);
+ if(comidaPedida == 1){
+ lcd.write(" carne ");
+ }else if(comidaPedida == 2){
+ lcd.write("pescado");
+ }else if(comidaPedida == 3){
+ lcd.write("verdura");
+ }
+ //Serial.print("Queria carne");//
+
+ Enfado();
+ }else{
+ lcd.setCursor(9,0);
+ lcd.write("Que ");
+ lcd.setCursor(9,1);
+ lcd.write(" bueno!!");
+ //Serial.print("Que bueno");//
+
+ Sonrie();
+ }
+
+ delay(5000);
+
+ borrarTexto();
+
+ delay(3000);
+
+ //Jugar
+ Dormido();
+ delay(1000);
+ lcd.setCursor(9,0);
+ lcd.write("Me");
+ lcd.setCursor(9,1);
+ lcd.write(" aburro");
+
+ delay(1500);
+
+ lcd.setCursor(9,0);
+ lcd.write("Quiero ");
+ lcd.setCursor(9,1);
+ lcd.write(" jugar ");
+
+ delay(2000);
+
+ borrarTexto();
+
+ delay(1000);
+
+ lcd.setCursor(9,0);
+ lcd.write("Pulsa ");
+12
+ lcd.setCursor(9,1);
+ lcd.write("boton 1");
+
+ while(!jugando){
+ //si se pulsa el boton se sale del bucle y empieza a jugar
+ if(keypad.getKey() == '1'){
+ jugando = true;
+ }
+ delay(10);
+ }
+
+ borrarTexto();
+ delay(1500);
+
+ Juega();
+ lcd.setCursor(9,0);
+ lcd.write("A");
+ lcd.setCursor(9,1);
+ lcd.write(" jugar!");
+
+ delay(2000);
+
+ borrarTexto();
+
+ //se juega
+ ganado = simon();
+
+ //delay(1500);
+
+ if(ganado){
+ Sorpresa();
+ delay(2000);
+ lcd.setCursor(9,0);
+ lcd.write("Has");
+ lcd.setCursor(9,1);
+ lcd.write("ganado!");
+ } else {
+ Dormido();
+ delay(2000);
+ lcd.setCursor(9,0);
+ lcd.write("Has");
+ lcd.setCursor(9,1);
+ lcd.write("perdido");
+ }
+
+ delay(2500);
+ borrarTexto();
+
+ delay(5000);
+
+
+ //delay(200000);
+ reiniciar();
+ }
+
+}
+void initializeSequence() {
+ for (int i = 0; i < maxSteps; i++) {
+ sequence[i] = random(1,5); // Genera una secuencia aleatoria de 1 a 4
+ //Serial.println(sequence[i]);
+ }
+}
+void playSequence() {
+ int currentColor = 0;
+ for (int i = 0; i < currentSteps; i++) {
+ currentColor = getLedPin(sequence[i]);
+ //Serial.println(currentColor);
+ // Enciende el LED correspondiente al color actual
+ digitalWrite(currentColor, HIGH);
+ if(sequence[i] == 1){
+ tone(zumPin, DO);
+13
+ }else if(sequence[i] == 2){
+ tone(zumPin, RE);
+ }else if(sequence[i] == 3){
+ tone(zumPin, MI);
+ }else if(sequence[i] == 4){
+ tone(zumPin, FA);
+ }
+ delay(1000); // Mantiene el LED encendido durante 500 milisegundos
+ noTone(zumPin);
+ digitalWrite(currentColor, LOW);
+ delay(500); // Espera antes de pasar al siguiente color
+ }
+}
+int getLedPin(int color) {
+ switch (color) {
+ case 1:
+ return yellowPin;
+ case 2:
+ return bluePin;
+ case 3:
+ return redPin;
+ case 4:
+ return greenPin;
+ default:
+ return 0;
+ }
+}
+bool simon(){
+ bool ganado = true;
+ int buttonPressed;
+ //initializeSequence();
+ while(currentSteps <= maxSteps){
+ playSequence();
+ key = '0';
+ // Espera a que el jugador repita la secuencia
+ for (int i = 0; i < currentSteps; i++) {
+ key = '0';
+ // Espera a que se presione un botón
+ //key = keypad.getKey();
+ while(key != 'A' && key != 'B' &&
+ key != 'C' && key != 'D'){
+ key = keypad.getKey();
+ delay(10);
+ }
+ Serial.println(key);
+ // Determina qué botón se presionó
+ buttonPressed = 0;
+ if (key == 'A') {
+ buttonPressed = 1;
+ } else if (key == 'B') {
+ buttonPressed = 2;
+ } else if (key == 'C') {
+ buttonPressed = 3;
+ } else if (key == 'D') {
+ buttonPressed = 4;
+ }
+ Serial.print("boton:");//
+ Serial.println(buttonPressed);//
+ Serial.print("color:");//
+ Serial.println(sequence[i]);//
+ // Comprueba si el botón presionado es correcto
+ if (buttonPressed == sequence[i]) {
+ Serial.println("Acierto");//
+ if(buttonPressed == 1){
+ digitalWrite(yellowPin, HIGH); // Enciende el LED correspondiente
+ tone(zumPin, DO);
+ delay(500);
+14
+ digitalWrite(yellowPin, LOW); // Apaga el LED
+ }else if(buttonPressed == 2){
+ digitalWrite(bluePin, HIGH); // Enciende el LED correspondiente
+ tone(zumPin, RE);
+ delay(500);
+ digitalWrite(bluePin, LOW); // Apaga el LED
+ }else if(buttonPressed == 3){
+ digitalWrite(redPin, HIGH); // Enciende el LED correspondiente
+ tone(zumPin, MI);
+ delay(500);
+ digitalWrite(redPin, LOW); // Apaga el LED
+ }else if(buttonPressed == 4){
+ digitalWrite(greenPin, HIGH); // Enciende el LED correspondiente
+ tone(zumPin, FA);
+ delay(500);
+ digitalWrite(greenPin, LOW); // Apaga el LED
+ }
+ noTone(zumPin);
+ delay(200);
+ } else {
+ // El jugador cometió un error
+ ganado = false;
+ break; // Sale del bucle
+ }
+
+ }
+ if(ganado == false){
+ break;
+ }
+ delay(300);
+ currentSteps++;
+ }
+ return ganado;
+}
+void reiniciar(){
+ comidaPedida = 0;
+ igualGlobal = false;
+ tarjetaLeida = false;
+ jugando = false;
+ ganado = false;
+ numAleatorio = 0;
+ initializeSequence();
+ currentSteps = 1;
+}
+bool comprobarComida(){
+
+ bool igual = true;
+
+ byte pedida[] = {0, 0, 0, 0};
+ //Serial.print(comidaPedida);//
+
+ if(comidaPedida == 1){
+ for(int i = 0; i < 4; i++){
+ pedida[i] = carne[i];
+ }
+ } else if(comidaPedida == 2){
+ for(int i = 0; i < 4; i++){
+ pedida[i] = pescado[i];
+ }
+ } else if(comidaPedida == 3){
+ for(int i = 0; i < 4; i++){
+ pedida[i] = verdura[i];
+ }
+ }
+
+ while(!tarjetaLeida){
+ if ( mfrc522.PICC_IsNewCardPresent()) {
+15
+ //Seleccionamos una tarjeta
+ if ( mfrc522.PICC_ReadCardSerial()) {
+
+ igual = (memcmp(mfrc522.uid.uidByte, pedida, 4) == 0);
+
+ mfrc522.PICC_HaltA();
+ tarjetaLeida = true;
+ }
+ }
+ }
+
+ return igual;
+}
+void borrarTexto(){
+ lcd.setCursor(9,0);
+ lcd.write(" ");
+ lcd.setCursor(9,1);
+ lcd.write(" ");
+}
+///////////////////////////////////////// EMOCIONES
+void Sonrie(){ ///////////////////////////////////////// SONRIE ///////////////////
+ // OJO IZDO
+ lcd.setCursor(3, 0);
+ lcd.write (byte (2));
+
+ // OJO DCHO
+ lcd.setCursor(6, 0);
+ lcd.write (byte (2));
+
+ // BOCA
+ lcd.setCursor(3, 1);
+ lcd.write (byte (0));
+ lcd.write(BocaNormal);
+ lcd.write(BocaNormal);
+ lcd.write (byte (1));
+
+ tone(zumPin, DO);
+ delay(100);
+ tone(zumPin, SOL);
+ delay(100);
+ tone(zumPin, MI);
+ delay(100);
+ noTone(zumPin);
+}
+void Triste(){ ///////////////////////////////////////// TRISTE ///////////////////
+ // OJO IZDO
+ lcd.setCursor(3, 0);
+ lcd.write(OjoTriste);
+
+ // OJO DCHO
+ lcd.setCursor(6, 0);
+ lcd.write(OjoTriste);
+
+ // BOCA
+ lcd.setCursor(3, 1);
+ lcd.write (byte (1));
+ lcd.write(BocaElevada);
+ lcd.write(BocaElevada);
+ lcd.write (byte (0));
+
+ tone(zumPin, RES);
+ delay(100);
+ tone(zumPin, SOL);
+ delay(200);
+ tone(zumPin, DO);
+ delay(200);
+ noTone(zumPin);
+16
+}
+void Enfado(){ ///////////////////////////////////////// ENFADO ///////////////////
+ // OJO IZDO
+ lcd.setCursor(3, 0);
+ lcd.write (byte (3));
+
+ // OJO DCHO
+ lcd.setCursor(6, 0);
+ lcd.write (byte (4));
+
+ // BOCA
+ lcd.setCursor(3, 1);
+ lcd.write (byte (1));
+ lcd.write(BocaElevada);
+ lcd.write(BocaElevada);
+ lcd.write (byte (0));
+
+ tone(zumPin, SOL);
+ delay(100);
+ tone(zumPin, FAS);
+ delay(100);
+ tone(zumPin, FA);
+ delay(200);
+ noTone(zumPin);
+}
+void Normal(){ ///////////////////////////////////////// NORMAL ///////////////////
+ // OJO IZDO
+ lcd.setCursor(3, 0);
+ lcd.write(OjoNormal);
+
+ // OJO DCHO
+ lcd.setCursor(6, 0);
+ lcd.write(OjoNormal);
+
+ // BOCA
+ lcd.setCursor(3, 1);
+ lcd.write(BocaNormal);
+ lcd.write(BocaNormal);
+ lcd.write(BocaNormal);
+ lcd.write(BocaNormal);
+
+
+ tone(zumPin, DO);
+ delay(100);
+ tone(zumPin, RES);
+ delay(100);
+ tone(zumPin, RE);
+ delay(200);
+ noTone(zumPin);
+
+}
+void Dormido(){ ///////////////////////////////////////// DORMIDO ///////////////////
+ // OJO IZDO
+ lcd.setCursor(3, 0);
+ lcd.write(BocaNormal);
+
+ // OJO DCHO
+ lcd.setCursor(6, 0);
+ lcd.write(BocaNormal);
+
+ // BOCA
+ lcd.setCursor(3, 1);
+ lcd.write(BocaElevada);
+ lcd.write(BocaElevada);
+ lcd.write(BocaElevada);
+ lcd.write(BocaElevada);
+
+17
+
+ tone(zumPin, DO);
+ delay(100);
+ tone(zumPin, DOS);
+ delay(100);
+ tone(zumPin, DO);
+ delay(200);
+ noTone(zumPin);
+}
+void Juega(){ ///////////////////////////////////////// JUEGA ///////////////////
+ // OJO IZDO
+ lcd.setCursor(3, 0);
+ lcd.write (byte (5));
+
+ // OJO DCHO
+ lcd.setCursor(6, 0);
+ lcd.write (byte (5));
+
+ // BOCA
+ lcd.setCursor(3, 1);
+ lcd.write (byte (0));
+ lcd.write(BocaNormal);
+ lcd.write(BocaNormal);
+ lcd.write (byte (1));
+
+ tone(zumPin, FAS);
+ delay(80);
+ tone(zumPin, SOL);
+ delay(80);
+ tone(zumPin, RES);
+ delay(100);
+ tone(zumPin, DO);
+ delay(100);
+ noTone(zumPin);
+
+}
+void Sorpresa(){ ///////////////////////////////////////// SORPRESA ///////////////////
+ // OJO IZDO
+ lcd.setCursor(3, 0);
+ lcd.write(OjoSorpresa);
+
+ // OJO DCHO
+ lcd.setCursor(6, 0);
+ lcd.write(OjoSorpresa);
+
+ // BOCA
+ lcd.setCursor(3, 1);
+ lcd.write(Vacio);
+ lcd.write(BocaNormal);
+ lcd.write(BocaNormal);
+ lcd.write(Vacio);
+
+ tone(zumPin, FAS);
+ delay(80);
+ tone(zumPin, SI);
+ delay(80);
+ tone(zumPin, FAS);
+ delay(80);
+ tone(zumPin, SI);
+ delay(80);
+ tone(zumPin, FAS);
+ delay(80);
+ tone(zumPin, SI);
+ delay(80);
+ noTone(zumPin);
+}
